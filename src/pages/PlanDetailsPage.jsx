@@ -120,7 +120,7 @@ function PlanDetailsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F4F1EA] to-white py-12">
+    <div className="min-h-screen bg-gradient-to-b from-[#fffff] to-white py-12">
       <div className="max-w-4xl mx-auto px-4">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Complete Your Registration</h1>

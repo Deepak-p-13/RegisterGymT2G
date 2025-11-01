@@ -11,7 +11,7 @@ function PaymentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F1EA] py-12">
+    <div className="min-h-screen bg-[#fffff] py-12">
       <div className="max-w-md mx-auto px-4">
         <h1 className="text-3xl font-bold text-center mb-8">Complete Payment</h1>
         

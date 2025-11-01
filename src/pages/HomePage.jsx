@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FaDumbbell, FaUserFriends, FaCrown, FaHeadset, FaCalculator, FaLock, FaChevronDown, FaBars, FaTimes } from 'react-icons/fa'
 import axios from 'axios'
@@ -7,11 +7,13 @@ import { API_ENDPOINTS } from '../config/api'
 function HomePage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [expandedSection, setExpandedSection] = useState(null)
-  const [activeFeatureIndex, setActiveFeatureIndex] = useState(2)
+  const [activeFeatureIndex, setActiveFeatureIndex] = useState(0)
   const [subscriptions, setSubscriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [expandedCustomerSegment, setExpandedCustomerSegment] = useState(null)
+  const featuresSectionRef = useRef(null)
+  const isManualInteraction = useRef(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -71,6 +73,67 @@ function HomePage() {
       document.body.style.overflow = 'unset';
     }
   }, [isMenuOpen]);
+
+  // Auto-open features on scroll
+  useEffect(() => {
+    let ticking = false;
+    
+    const handleScroll = () => {
+      if (!featuresSectionRef.current || isManualInteraction.current) return;
+
+      const rect = featuresSectionRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      
+      // Check if section is in viewport
+      if (rect.top < windowHeight && rect.bottom > 0) {
+        // Calculate scroll progress within the section
+        // When section enters viewport, start animating
+        const scrollInSection = Math.max(0, windowHeight - rect.top);
+        const sectionHeight = rect.height;
+        
+        // Normalize progress from 0 to 1 over the full section height
+        const scrollProgress = Math.min(1, scrollInSection / sectionHeight);
+        
+        // Calculate which feature to show based on scroll progress
+        // Split into 4 stages: 0-25%, 25-50%, 50-75%, 75-100%
+        const totalFeatures = 4;
+        let targetIndex = 0;
+        
+        if (scrollProgress > 0.75) {
+          targetIndex = 3;
+        } else if (scrollProgress > 0.5) {
+          targetIndex = 2;
+        } else if (scrollProgress > 0.25) {
+          targetIndex = 1;
+        } else {
+          targetIndex = 0;
+        }
+        
+        // Always update the active index based on scroll
+        setActiveFeatureIndex(targetIndex);
+      }
+    };
+
+    // Throttle scroll events for better performance
+    const throttledHandleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          handleScroll();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', throttledHandleScroll, { passive: true });
+    window.addEventListener('resize', throttledHandleScroll);
+    throttledHandleScroll(); // Check immediately
+
+    return () => {
+      window.removeEventListener('scroll', throttledHandleScroll);
+      window.removeEventListener('resize', throttledHandleScroll);
+    };
+  }, []);
 
   const toggleSection = (section) => {
     setExpandedSection(expandedSection === section ? null : section);
@@ -222,7 +285,7 @@ function HomePage() {
           </div>
 
           {/* Main Heading */}
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-gray-900 leading-tight fade-in tracking-[-0.06em]">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-black leading-tight fade-in tracking-[-0.06em]">
             <span className="inline-block relative">
               Revolutionize
               <span className="absolute bottom-2 left-0 w-full h-3 md:h-4 bg-yellow-400 -z-10"></span>
@@ -431,7 +494,7 @@ function HomePage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="section-padding bg-white">
+      <section id="features" ref={featuresSectionRef} className="section-padding bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-4 items-start">
             {/* Left: Heading + Accordion */}
@@ -472,36 +535,48 @@ function HomePage() {
                   },
                 ].map((item, index) => {
                   const isActive = activeFeatureIndex === index
+                  const progress = activeFeatureIndex === index ? 100 : 0
                   return (
-                    <button
-                      key={item.title}
-                      onClick={() => setActiveFeatureIndex(index)}
-                      className={`w-full text-left py-5 md:py-6 transition-colors ${
-                        isActive ? 'text-gray-900' : 'text-gray-800'
-                      }`}
-                    >
-                      <div className="flex items-start gap-6">
-                        <div className="mt-1 text-gray-500 min-w-[24px]">{index + 1}.</div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-[18px] md:text-[20px] font-semibold">{item.title}</h3>
-                            <svg
-                              className={`w-5 h-5 transition-transform ${isActive ? 'translate-x-1' : ''}`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                            </svg>
+                    <div key={item.title} className="relative overflow-hidden">
+                      {/* Progress Bar */}
+                      <div className="absolute left-0 bottom-0 h-[1px] bg-black transition-all duration-1000 ease-out z-10" style={{ width: `${progress}%` }}></div>
+                      
+                      <button
+                        onClick={() => {
+                          isManualInteraction.current = true;
+                          setActiveFeatureIndex(isActive ? -1 : index);
+                          // Reset manual interaction after 2 seconds to resume auto-scroll
+                          setTimeout(() => {
+                            isManualInteraction.current = false;
+                          }, 2000);
+                        }}
+                        className={`w-full text-left py-5 md:py-6 transition-colors relative ${
+                          isActive ? 'text-gray-900' : 'text-gray-800'
+                        }`}
+                      >
+                        <div className="flex items-start gap-6">
+                          <div className="mt-1 text-gray-500 min-w-[24px]">{index + 1}.</div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-[18px] md:text-[20px] font-semibold">{item.title}</h3>
+                              <svg
+                                className={`w-5 h-5 transition-transform ${isActive ? 'translate-x-1' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
+                            {isActive && (
+                              <p className="mt-3 text-gray-600 text-[15px] leading-relaxed">
+                                {item.description}
+                              </p>
+                            )}
                           </div>
-                          {isActive && (
-                            <p className="mt-3 text-gray-600 text-[15px] leading-relaxed">
-                              {item.description}
-                            </p>
-                          )}
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   )
                 })}
               </div>
@@ -700,7 +775,7 @@ function HomePage() {
                   <div 
                     key={subscription.subscriptionId || index} 
                     className={`p-6 md:p-8 rounded-lg shadow-lg ${
-                      index === 1 ? 'bg-black text-white transform scale-105' : 'bg-[#F4F1EA] text-black'
+                      index === 1 ? 'bg-black text-white transform scale-105' : 'bg-[#fffff] text-black'
                     }`}
                   >
                     <h3 className={`text-2xl font-bold mb-4 ${index === 1 ? 'text-white' : 'text-black'}`}>
@@ -740,7 +815,7 @@ function HomePage() {
       </section>
 
       {/* Who We Serve & Purpose Section */}
-      <section className="section-padding bg-[#F4F1EA]">
+      <section className="section-padding bg-[#fffff]">
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-2 gap-12 md:gap-16">
             {/* Left Column - WHO WE SERVE */}
@@ -814,7 +889,7 @@ function HomePage() {
       </section>
 
       {/* Contact */}
-      <section id="contact" className="section-padding bg-[#F4F1EA]">
+      <section id="contact" className="section-padding bg-[#fffff]">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-8 md:mb-12 text-black fade-in">
             Get in Touch
@@ -836,20 +911,20 @@ function HomePage() {
               </div>
             </div>
             <form className="bg-white p-6 md:p-8 rounded-lg shadow-lg fade-in">
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div>
-                  <label className="block text-black mb-2">Name</label>
-                  <input type="text" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-black" />
+                  <label className="block text-gray-700 mb-2">Your Name</label>
+                  <input type="text" className="w-full px-0 py-2 bg-transparent border-0 border-b border-gray-700 focus:outline-none focus:border-gray-900 text-gray-900" />
                 </div>
                 <div>
-                  <label className="block text-black mb-2">Email</label>
-                  <input type="email" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-black" />
+                  <label className="block text-gray-700 mb-2">Your Email</label>
+                  <input type="email" className="w-full px-0 py-2 bg-transparent border-0 border-b border-gray-700 focus:outline-none focus:border-gray-900 text-gray-900" />
                 </div>
                 <div>
-                  <label className="block text-black mb-2">Message</label>
-                  <textarea rows="4" className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-black"></textarea>
+                  <label className="block text-gray-700 mb-2">Tell us about your project</label>
+                  <textarea rows="4" className="w-full px-0 py-2 bg-transparent border-0 border-b border-gray-700 focus:outline-none focus:border-gray-900 text-gray-900 resize-none"></textarea>
                 </div>
-                <button type="submit" className="w-full btn-primary">Send Message</button>
+                <button type="submit" className="w-full btn-primary mt-6">Send Message</button>
               </div>
             </form>
           </div>
